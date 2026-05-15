@@ -18,9 +18,7 @@ UNIVERSES = {
 }
 
 # Online learning parameters
-LEARNING_RATE = 0.05   # η (eta) for exponential gradient
-USE_ADAPTIVE = True    # adaptive learning rate (1/√t)
-INITIAL_WEIGHTS = "equal"   # or can be "uniform"
-
-# For dashboard
+LEARNING_RATE = 0.1          # base η
+USE_ADAPTIVE = True          # adaptive decay (1/√t)
+RETURN_SCALE = 20.0          # multiply returns before exponent (higher = more sensitivity)
 TOP_N = 3
