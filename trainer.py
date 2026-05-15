@@ -50,7 +50,12 @@ def main():
         tickers_cleaned = returns.columns.tolist()
 
         # Run online portfolio algorithm over the entire history
-        egp = ExponentialGradientPortfolio(n_assets, learning_rate=config.LEARNING_RATE, adaptive=config.USE_ADAPTIVE)
+        egp = ExponentialGradientPortfolio(
+            n_assets,
+            learning_rate=config.LEARNING_RATE,
+            adaptive=config.USE_ADAPTIVE,
+            scale=config.RETURN_SCALE
+        )
         history, cum_wealth = egp.run_online(returns)
 
         # Current weights after processing all days
