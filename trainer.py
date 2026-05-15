@@ -32,26 +32,36 @@ def main():
     for universe_name, tickers in config.UNIVERSES.items():
         print(f"\n=== Universe: {universe_name} (Mirror Descent Online) ===")
         returns = data_manager.prepare_returns_matrix(df, tickers)
-        if returns.empty or len(returns) < 10:
+        if returns.empty or len(returns) < 2:
             print("  Insufficient data")
             all_results[universe_name] = {"top_assets": []}
             continue
 
+        # Clean returns: drop rows/columns with all NaN
+        returns = returns.dropna(how='all')
+        returns = returns.dropna(axis=1, how='all')
+        if returns.empty or returns.shape[1] == 0:
+            print("  All returns NaN after cleaning")
+            all_results[universe_name] = {"top_assets": []}
+            continue
+
+        # Use the cleaned returns
+        n_assets = returns.shape[1]
+        tickers_cleaned = returns.columns.tolist()
+
         # Run online portfolio algorithm over the entire history
-        n_assets = len(tickers)
         egp = ExponentialGradientPortfolio(n_assets, learning_rate=config.LEARNING_RATE, adaptive=config.USE_ADAPTIVE)
         history, cum_wealth = egp.run_online(returns)
 
         # Current weights after processing all days
         current_weights = egp.current_weights()
-        top_assets = egp.top_assets(tickers, top_n=config.TOP_N)
+        top_assets = egp.top_assets(tickers_cleaned, top_n=config.TOP_N)
 
         # Prepare output
         top_list = [{"ticker": ticker, "weight": float(w)} for ticker, w in top_assets]
-        full_weights = {ticker: float(current_weights[i]) for i, ticker in enumerate(tickers)}
-        # Also get final cumulative wealth and last portfolio return
-        final_cum_wealth = float(cum_wealth[-1])
-        last_port_return = float(history[-1]['portfolio_return'])
+        full_weights = {ticker: float(current_weights[i]) for i, ticker in enumerate(tickers_cleaned)}
+        final_cum_wealth = float(cum_wealth[-1]) if len(cum_wealth) > 0 else 1.0
+        last_port_return = float(history[-1]['portfolio_return']) if history else 0.0
 
         print(f"  Top 3 assets by weight: {[e['ticker'] for e in top_list]}")
         print(f"  Final cumulative wealth: {final_cum_wealth:.3f} (starting at 1)")
