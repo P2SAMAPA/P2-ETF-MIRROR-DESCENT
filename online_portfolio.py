@@ -14,19 +14,32 @@ class ExponentialGradientPortfolio:
         Update weights after observing returns (vector of length n_assets).
         returns: observed daily returns for each asset.
         """
+        # Clip returns to safe range to avoid overflow in exp
+        returns = np.clip(returns, -1.0, 1.0)
+        # Remove NaN (set to 0) – but better to skip updates if any NaN?
+        # If any return is NaN, we skip the update (keep weights unchanged)
+        if np.any(np.isnan(returns)):
+            # Keep previous weights
+            return 0.0
         # Exponential gradient update
-        # w_{t+1,i} = w_{t,i} * exp(eta * r_{t,i}) / sum_j w_{t,j} * exp(eta * r_{t,j})
         exp_terms = self.weights * np.exp(self.eta * returns)
-        new_weights = exp_terms / np.sum(exp_terms)
-        # If adaptive eta = 1 / sqrt(t) (starting from t=1)
+        Z = np.sum(exp_terms)
+        if Z == 0:
+            # fallback: equal weights
+            new_weights = np.ones(self.n) / self.n
+        else:
+            new_weights = exp_terms / Z
+        # If any weight becomes NaN (e.g., from 0/0), fallback to equal
+        if np.any(np.isnan(new_weights)):
+            new_weights = np.ones(self.n) / self.n
+        # Update adaptive learning rate
         if self.adaptive:
             t = len(self.history) + 1
             self.eta = 0.05 / np.sqrt(t)
-        self.weights = new_weights
-        # Compute portfolio return for this period (using current weights? Actually we use previous weights)
-        # The portfolio return for day t is dot(weights_before_update, returns)
-        # We'll store the portfolio return after update but using pre‑update weights.
+        # Compute portfolio return using old weights
         port_ret = np.dot(self.weights, returns)
+        # Store new weights
+        self.weights = new_weights
         return port_ret
 
     def run_online(self, returns_df):
@@ -44,7 +57,15 @@ class ExponentialGradientPortfolio:
             self.eta = 0.05   # will be adjusted inside update after first day
         for i in range(n):
             ret_vec = returns_df.iloc[i].values
-            port_ret = self.update(ret_vec)
+            # Skip days with all NaN
+            if np.all(np.isnan(ret_vec)):
+                # No update, portfolio return 0
+                port_ret = 0.0
+                # Keep previous weights
+            else:
+                # Replace NaN with 0 (or we could skip, but we already skip whole vector)
+                ret_vec = np.nan_to_num(ret_vec, nan=0.0)
+                port_ret = self.update(ret_vec)
             portfolio_returns.append(port_ret)
             # Store snapshot
             self.history.append({
